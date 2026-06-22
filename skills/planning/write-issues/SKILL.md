@@ -1,6 +1,6 @@
 ---
 name: write-issues
-description: Decompose a PRD (or sufficiently-shaped plan) into ranked, agent-ready GitHub Issues. Each issue is sized to <10 min review, has acceptance criteria as test cases, explicit out-of-scope, invariants, and topological dependencies. Use when the user invokes `/write-issues`, says "write the issues", "decompose this into issues", "create the GH issues", or naturally needs to take a PRD to a queue. Output is a markdown draft at `~/.claude/plans/<slug>-issues.md` for review, then optionally `gh issue create`. NEVER auto-creates on GitHub without explicit confirmation. Skip for trivial work (single-file changes, bug fixes the user can describe in one sentence).
+description: Decompose a PRD (or sufficiently-shaped plan) into ranked, agent-ready GitHub Issues. Each issue leads with a plain-English "what this is / why it matters" summary a non-technical reader can follow, then a technical block sized to <10 min review with acceptance criteria as test cases, explicit out-of-scope, invariants, and topological dependencies. Use when the user invokes `/write-issues`, says "write the issues", "decompose this into issues", "create the GH issues", or naturally needs to take a PRD to a queue. Default output is a markdown draft at `~/.claude/plans/<slug>-issues.md` for review, then `gh issue create`; a fast path creates directly when the scope is already locked and the user has said to create them. NEVER auto-creates on GitHub without explicit confirmation. Skip for trivial work (single-file changes, bug fixes the user can describe in one sentence).
 tools: Read, Write, Glob, Grep, Bash, AskUserQuestion
 ---
 
@@ -22,13 +22,24 @@ Decompose a PRD (or sufficiently-shaped plan) into ranked, agent-ready GitHub Is
 
 ## Core constraints
 
+- **Every issue leads with a plain-English summary.** A non-technical reader (the founder, a stakeholder) must be able to follow *what* the issue does and *why* it matters before the technical block begins. This is required, not optional.
 - **Each issue's PR must be reviewable in <10 minutes.** Hard cap. Bigger → split.
 - **Topologically ordered.** Issues you can start now first; blocked ones below their blockers.
 - **Match existing repo labels — never invent new ones.** If a needed label is missing, flag it, don't auto-create.
-- **Never auto-create on GitHub.** The output is a markdown draft for the user to review. After approval, offer `gh issue create` per-issue or bulk.
+- **Match the repo's own issue style.** Read a couple of existing issues first and mirror their format/prose, not just their labels.
+- **Never auto-create on GitHub without a clear go-ahead.** Default (draft path): output a markdown draft for review, then create after approval. On the fast path the user's explicit "create them" *is* the go-ahead — but never create issues the user hasn't greenlit.
 - **Architecture / security / ambiguity → `needs-human-decision`.** Those issues stay in the human queue, not the agent queue.
 
 ## Workflow
+
+### Choose the path first
+
+Two ways to run, decided by how settled the work already is:
+
+- **Draft path (default).** The source is a PRD, or a large/ambiguous plan, or the executor is *cold* (an overnight agent, a dev without the context). Decompose → write the markdown draft → review → create. Run steps 1–10 as written.
+- **Fast path.** The scope is *already locked* — it came straight out of a `/refine-plan` pass or a clear in-session conversation — **and** the user has already said "create them" / "write them to GitHub." Skip the draft file and the review gate (step 7's file and step 8's wait) and create directly: run steps 1–6, then 9–10, applying *every* quality bar (sizing, label-matching, dependencies, and the plain-English + technical body). The user's "create them" is the confirmation, so the no-auto-create rule is satisfied.
+
+When unsure which path, default to the draft path. The two differ only in the review gate — the issue *content and quality bars are identical*.
 
 ### 1. Locate the source
 
@@ -46,6 +57,7 @@ Before drafting:
 - Read the source PRD/plan in full
 - Read `AGENTS.md` for project conventions
 - Run `gh label list` to know which labels exist
+- **Read 1–2 recent issues** (`gh issue list`, then `gh issue view <n>`) to match the repo's actual issue format and prose style — not just its labels. New issues should look like they belong.
 - Run `git status` to know what's in flight (don't propose issues that overlap uncommitted work or live worktrees without flagging)
 - Skim referenced files so issue file paths are real
 
@@ -97,8 +109,14 @@ Source PRD: `~/.claude/plans/<slug>-prd.md`
 **Blocked by:** *(none — ready now)*
 **PRD section:** [Phase 1](path/to/prd.md#phase-1-name)
 
-### Context
-<1–2 sentences. What this issue does and why.>
+### What this is (plain English)
+<2–4 sentences a non-technical reader can follow: what this issue does and why it matters to the product/user/business. No jargon; spell out any acronym on first use. This is the part the founder reads.>
+
+### Why now
+<1 sentence: what this unblocks, or the cost of not doing it. Drop the heading if it's obvious from the above.>
+
+### Technical detail
+<1–2 sentences for the executor: the implementation summary — the bridge from the plain-English part to the bullets below.>
 
 ### Files to touch
 - `src/components/Foo.jsx` — <brief role>
@@ -136,6 +154,8 @@ Source PRD: `~/.claude/plans/<slug>-prd.md`
 
 ### 8. Show the user, then offer to create
 
+*(Draft path only — the fast path skips straight to step 9, since the user has already said to create them.)*
+
 After writing the markdown:
 
 1. Tell the user: *"Issues drafted at `~/.claude/plans/<slug>-issues.md`. Review the file, then tell me when you want me to create them on GitHub."*
@@ -153,7 +173,7 @@ For each issue:
 ```bash
 gh issue create \
   --title "<title>" \
-  --body "<body assembled from Context + Files + Acceptance + Out-of-scope + Invariants + Blocked-by>" \
+  --body "<body: plain-English lead (What this is / Why now / Technical detail) + Files + Acceptance + Out-of-scope + Invariants + Blocked-by>" \
   --label "<comma-separated existing labels>"
 ```
 
@@ -171,8 +191,8 @@ End with:
 ## Output discipline
 
 - **No invented labels.** If you want one and it doesn't exist, surface it; don't auto-create.
-- **No auto-creation on GitHub without confirmation.** Issues are visible work; bad issues = visible bad work.
+- **No auto-creation on GitHub without confirmation.** Issues are visible work; bad issues = visible bad work. (Fast path: the user's "create them" is that confirmation.)
 - **No oversized issues.** If you find yourself writing a `size/L`, split first. Only apply `size/L` to genuinely-indivisible units.
-- **No prose in the issue body.** Bullets > paragraphs. Acceptance criteria > requirement narrative.
+- **Prose only in the plain-English lead.** The "What this is / Why now" section is plain prose by design — a non-technical reader must follow it. Everything below it stays bullets: acceptance criteria > requirement narrative.
 - **No "Definition of Done" boilerplate.** Acceptance criteria + invariants cover it.
 - **Mirror PRD non-goals as per-issue out-of-scope.** Autonomous executors enforce out-of-scope at the issue level — they don't go re-read the PRD for it.
