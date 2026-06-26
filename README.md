@@ -8,9 +8,10 @@ same planning rituals, same issue shape, same CI standards, same handoff format.
 > command (e.g. `/write-issues`). It teaches Claude a repeatable procedure. See the
 > [Claude Code skills docs](https://docs.claude.com/en/docs/claude-code/skills).
 
-These are **portable** skills — useful in any repo. Skills that are specific to one product (for
-example the app repo's `end-of-session`) live committed inside *that* repo's `.claude/skills/`, not
-here.
+Most of these are **portable** skills — useful in any repo. The one exception is `end-of-session`,
+which is specific to the ProfSage app repo (it drives that repo's Sage Vault). It lives here so the
+whole team installs it the same way, but it only does anything inside the app repo — elsewhere it's
+a no-op.
 
 ---
 
@@ -56,6 +57,7 @@ Verify inside Claude Code by typing `/` — the skills below should appear.
 | Skill | What it does |
 |-------|--------------|
 | `handoff` | Compacts the current conversation into a handoff document another agent (or person) can pick up cold. |
+| `end-of-session` | Updates the app's Sage Vault at the end of a session — refreshes the Session Log, captures ADR-worthy decisions, logs new bugs, rolls up roadmap status. **App-repo-specific**: it drives the Sage Vault and is a no-op in any other repo. |
 
 ---
 
